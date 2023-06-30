@@ -12,8 +12,11 @@ import com.hazelcast.transaction.TransactionalMap;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+
 import java.io.File;
 import java.io.IOException;
+import java.util.AbstractMap;
+import java.util.Map;
 import java.util.stream.Stream;
 
 @Component
@@ -76,41 +79,34 @@ public class HazlecastRunner implements CommandLineRunner {
                 .aggregate(AggregateOperations.counting())
                 .map(x -> new PlayerGames(x.getKey(), x.getValue().intValue()));
 
-
-        var eloSumPerPlayer =
-            games.mapUsingIMap("ratings",x->x.opponent(), (k,v) -> new GameDetails((GameResult)k, ((RatingEntry)v).rating()))
-                .map(x ->  {
-                    var opponentRating = x.opponentRating();
-                    if(x.gameResult().type() == GameResultType.WIN) {
-                        return new PlayerWithEloSum(x.gameResult().player(), opponentRating + 400);
-                    } else if (x.gameResult().type() == GameResultType.LOSS) {
-                        return new PlayerWithEloSum(x.gameResult().player(), opponentRating - 400);
-                    } else {
-                        return new PlayerWithEloSum(x.gameResult().player(), 0);
-                    }})
-                .groupingKey(x -> x.player())
-                .aggregate(AggregateOperations.summingLong(x -> x.eloSum()));
+        var eloSumPerPlayer = games.mapUsingIMap("ratings", x->x.opponent(), (k, v) -> new GameDetails((GameResult)k, ((RatingEntry)v).rating()))
+            .map(x ->  {
+                var opponentRating = x.opponentRating();
+                if(x.gameResult().type() == GameResultType.WIN) {
+                    return new PlayerWithEloSum(x.gameResult().player(), opponentRating + 400);
+                } else if (x.gameResult().type() == GameResultType.LOSS) {
+                    return new PlayerWithEloSum(x.gameResult().player(), opponentRating - 400);
+                } else {
+                    return new PlayerWithEloSum(x.gameResult().player(), 0);
+                }})
+            .groupingKey(x -> x.player())
+            .aggregate(AggregateOperations.summingLong(x -> x.eloSum()))
+            .map(x -> new AbstractMap.SimpleEntry<String, EloEntry>(x.getKey(), new EloEntry(x.getKey(), x.getValue().intValue())));
 
         eloSumPerPlayer.writeTo(Sinks.logger(x -> String.format("%s", x)));
 
-
-//        var numberOfPreviousGames =
-//            pipe.readFrom(Sources.map("ratings"))
-//                .map(x -> new PlayerGames((String)x.getKey(), ((RatingEntry)x.getValue()).noGames()));
-
-//        var totalGames = numberOfGamesInBatch
-//            .merge(numberOfPreviousGames)
-//            .groupingKey(x -> x.playerName())
-//            .aggregate(AggregateOperations.summingLong(x -> x.noGames()))
-//            .map( x -> new PlayerGames(x.getKey(), x.getValue().intValue()));
-
-
-//        totalGames.writeTo(Sinks.logger(x -> String.format("%s", x)));
-
-        // Merge number of games with current data
-        numberOfGamesInBatch.mapUsingIMap("ratings",x->x.playerName(), (k,v) -> {
+        // Join results
+        var join = numberOfGamesInBatch.hashJoin(
+            eloSumPerPlayer,
+            JoinClause.<String, PlayerGames, EloEntry>joinMapEntries(PlayerGames::player),
+            (x, y) -> new PlayerWithEloSumAndGames(x.player(), ((EloEntry) y).eloSum(), x.noGames())
+        );
+            // Merge with current data
+            join.mapUsingIMap("ratings",x->x.player(), (k,v) -> {
             var e = (RatingEntry)v;
-            return new RatingEntry(e.player(), e.eloSum(), k.noGames() + e.noGames(), e.rating());
+            var eloTotal = e.eloSum() + k.eloSum();
+            var gamesTotal = k.games() + e.noGames();
+            return new RatingEntry(e.player(), eloTotal, gamesTotal, gamesTotal == 0 ? 0 : eloTotal / gamesTotal);
         }).writeTo(Sinks.map("ratings", k -> k.player(), v ->
             // Store back data to rating table
             new RatingEntry(v.player(), v.eloSum(), v.noGames(), v.rating())

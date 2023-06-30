@@ -2,4 +2,4 @@ package com.example.demo;
 
 import java.io.Serializable;
 
-public record PlayerGames (String playerName, int noGames)  implements Serializable {}
+public record PlayerGames (String player, int noGames)  implements Serializable {}
