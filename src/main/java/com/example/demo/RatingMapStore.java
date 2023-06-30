@@ -19,11 +19,13 @@ public class RatingMapStore implements MapStore<String, RatingEntry> {
             allKeysStatement = con.prepareStatement("select name from ratings");
 
             con.createStatement()
-                .execute("create table if not exists ratings(" +
-                    "name varchar(50) primary key, " +
-                    "eloSum int, " +
-                    "noGames int, " +
-                    "rating int);");
+                .execute("""
+                    create table if not exists ratings( 
+                    name varchar(50) primary key, 
+                    elosum int, 
+                    nogames int, 
+                    rating int);           
+                    """);
 
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -33,8 +35,17 @@ public class RatingMapStore implements MapStore<String, RatingEntry> {
     @Override
     public void store(String key, RatingEntry value) {
         try {
+            var sql = """
+                        insert into ratings 
+                        values('%s', %d, %d, %d)
+                        on conflict (name) do update 
+                            set elosum=EXCLUDED.elosum,
+                                nogames=EXCLUDED.nogames,
+                                rating=EXCLUDED.rating;
+                      """;
             con.createStatement().executeUpdate(
-                String.format("insert into ratings values('%s', %d, %d, %d)", key, value.eloSum(), value.noGames(), value.rating()));
+                String.format(sql ,key, value.eloSum(), value.noGames(), value.rating()));
+
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -68,7 +79,7 @@ public class RatingMapStore implements MapStore<String, RatingEntry> {
     public synchronized RatingEntry load(String key) {
         try {
             ResultSet resultSet = con.createStatement().executeQuery(
-                String.format("select rating from ratings where name = '%s'", key));
+                String.format("select elosum, nogames, rating from ratings where name = '%s'", key));
             try {
                 if (!resultSet.next()) {
                     return null;

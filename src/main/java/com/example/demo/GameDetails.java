@@ -1,3 +1,5 @@
 package com.example.demo;
 
-public record GameDetails(GameEntry gameEntry, int winnerRating, int loserRating) {}
+import java.io.Serializable;
+
+public record GameDetails(GameResult gameResult, Integer opponentRating) implements Serializable {}

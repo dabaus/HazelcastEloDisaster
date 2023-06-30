@@ -1,4 +1,6 @@
 package com.example.demo;
 
-public record RatingEntry(String player, int eloSum, int noGames, int rating) {
+import java.io.Serializable;
+
+public record RatingEntry(String player, Integer eloSum, Integer noGames, Integer rating) implements Serializable {
 }
