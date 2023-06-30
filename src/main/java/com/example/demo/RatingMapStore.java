@@ -18,15 +18,6 @@ public class RatingMapStore implements MapStore<String, RatingEntry> {
         try {
             allKeysStatement = con.prepareStatement("select name from ratings");
 
-            con.createStatement()
-                .execute("""
-                    create table if not exists ratings( 
-                    name varchar(50) primary key, 
-                    elosum int, 
-                    nogames int, 
-                    rating int);           
-                    """);
-
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
