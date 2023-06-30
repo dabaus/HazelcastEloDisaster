@@ -1,4 +1,4 @@
-# Hazelcast ELO ratig
+# Hazelcast ELO rating
 
 Example on how to use hazlecast 
 to compute elo ratings in a streaming jet pipeline.
