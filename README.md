@@ -1,6 +1,6 @@
 # Hazelcast ELO rating
 
-Example on how to use hazlecast 
+Example on how to use hazelcast 
 to compute elo ratings in a streaming jet pipeline.
 Note that this code currently does not handle database 
 transactions properly.
